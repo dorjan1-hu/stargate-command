@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SGC DIALING COMPUTER v5.1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #010a0c;
+  --bg-panel:  #020e11;
+  --bg-card:   #031215;
+  --teal:      #00d4c8;
+  --teal-dim:  #006b67;
+  --teal-glow: rgba(0,212,200,0.12);
+  --red:       #cc2200;
+  --red-bright:#ff3300;
+  --red-glow:  rgba(204,34,0,0.20);
+  --green:     #00ff66;
+  --green-dim: #007733;
+  --amber:     #f5a623;
+  --text:      #b8e8e5;
+  --text-dim:  #3a7a77;
+  --border:    rgba(0,212,200,0.18);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Share Tech Mono',monospace;font-size:13px;
+  user-select:none;
+}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9000;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,0.04) 0,rgba(0,0,0,0.04) 1px,transparent 1px,transparent 3px);
+}
+
+.frame{
+  display:grid;
+  grid-template-rows:36px 1fr 22px;
+  width:100vw;height:100dvh;
+  padding:4px;gap:4px;
+  border:2px solid var(--teal-dim);
+  box-shadow:0 0 30px rgba(0,212,200,0.1),inset 0 0 40px rgba(0,0,0,0.5);
+}
+
+/* TITLEBAR */
+.titlebar{
+  display:flex;align-items:center;
+  background:var(--bg-panel);border:1px solid var(--teal-dim);
+  border-bottom:2px solid var(--teal);padding:0 10px;gap:8px;
+  position:relative;
+}
+.titlebar::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--teal),transparent);}
+.tb-title{font-family:'Orbitron',monospace;font-size:11px;color:var(--teal);letter-spacing:3px;white-space:nowrap;}
+.tb-sub{font-size:8px;color:var(--teal-dim);letter-spacing:1px;white-space:nowrap;}
+.tb-space{flex:1;}
+.tb-nav{display:flex;gap:3px;}
+.tb-btn{font-size:9px;letter-spacing:1px;padding:2px 9px;border:1px solid var(--teal-dim);
+  background:transparent;color:var(--teal-dim);cursor:pointer;text-transform:uppercase;transition:all .15s;}
+.tb-btn:hover,.tb-btn.active{border-color:var(--teal);color:var(--teal);background:var(--teal-glow);}
+#clock{font-size:10px;color:var(--teal);letter-spacing:1px;white-space:nowrap;}
+
+/* VIEWS */
+.view{display:none;width:100%;height:100%;min-height:0;}
+.view.active{display:flex;}
+
+/* DIALING VIEW */
+#view-dial{display:none;gap:4px;}
+#view-dial.active{
+  display:grid;
+  /* left fixed narrow, center flex, right fixed */
+  grid-template-columns:160px 1fr 170px;
+}
+
+/* LEFT PANEL */
+.dial-left{
+  display:grid;
+  grid-template-rows:1fr auto auto auto;
+  gap:4px;
+  background:var(--bg-panel);border:1px solid var(--teal-dim);
+  padding:5px;overflow:hidden;min-width:0;
+}
+
+/* binary stream */
+.binary-wrap{
+  overflow:hidden;position:relative;display:flex;gap:2px;min-height:0;
+}
+.binary-wrap::before,.binary-wrap::after{
+  content:'';position:absolute;left:0;right:0;z-index:2;pointer-events:none;height:12px;
+}
+.binary-wrap::before{top:0;background:linear-gradient(var(--bg-panel),transparent);}
+.binary-wrap::after{bottom:0;background:linear-gradient(transparent,var(--bg-panel));}
+.binary-col{
+  flex:1;display:flex;flex-direction:column;
+  animation:bin-scroll var(--dur,12s) linear infinite;
+}
+.binary-col:nth-child(2){animation-duration:9s;animation-direction:reverse;}
+.bin-line{font-size:7px;line-height:1.55;color:var(--teal-dim);white-space:nowrap;overflow:hidden;}
+.bin-line.bright{color:var(--teal);text-shadow:0 0 4px var(--teal);}
+@keyframes bin-scroll{0%{transform:translateY(0)}100%{transform:translateY(-50%)}}
+
+/* chevron list */
+.chev-wrap{flex-shrink:0;}
+.chev-title{font-size:7px;color:var(--teal-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;}
+.chev-list{display:flex;flex-direction:column;gap:1px;}
+.chev-row{display:flex;align-items:center;gap:3px;padding:1px 0;border-bottom:1px solid rgba(0,212,200,0.05);}
+.chev-num{font-size:8px;color:var(--text-dim);width:9px;flex-shrink:0;}
+.chev-bars{display:flex;gap:2px;flex:1;}
+.chev-bar{flex:1;height:6px;background:var(--bg-card);border:1px solid var(--teal-dim);transition:all .3s;}
+.chev-bar.on{background:var(--green-dim);border-color:var(--green);box-shadow:0 0 4px var(--green);}
+.chev-bar.rng{background:rgba(204,34,0,.2);border-color:var(--red);}
+.chev-ok{font-size:7px;color:var(--green);text-shadow:0 0 4px var(--green);width:14px;text-align:right;flex-shrink:0;}
+.chev-ok.off{color:var(--teal-dim);text-shadow:none;}
+
+/* DHD */
+.dhd-wrap{flex-shrink:0;border-top:1px solid var(--teal-dim);padding-top:3px;}
+.dhd-title{font-size:7px;color:var(--teal-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;}
+.dhd-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;}
+.dhd-btn{font-size:10px;padding:2px 0;background:var(--bg-card);border:1px solid var(--teal-dim);
+  color:var(--teal-dim);cursor:pointer;text-align:center;transition:all .15s;line-height:1.3;}
+.dhd-btn:hover{border-color:var(--teal);color:var(--teal);}
+.dhd-btn.active{border-color:var(--red-bright);color:#fff;background:rgba(204,34,0,.18);}
+
+/* gate buttons */
+.gate-btns-wrap{flex-shrink:0;display:flex;flex-direction:column;gap:2px;}
+.gate-btns{display:flex;gap:2px;}
+.g-btn{flex:1;padding:4px 2px;font-family:'Orbitron',monospace;font-size:7px;letter-spacing:1px;
+  border:1px solid var(--teal-dim);background:transparent;color:var(--teal-dim);
+  cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;
+  clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px));}
+.g-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-glow);}
+.g-btn.abort{border-color:var(--red);color:var(--red);}
+.g-btn.abort:hover{background:rgba(204,34,0,.1);}
+.g-btn.iris-open{border-color:var(--red);color:var(--red);}
+
+/* CENTER PANEL */
+.dial-center{
+  display:flex;flex-direction:column;
+  background:var(--bg-panel);border:1px solid var(--teal-dim);
+  padding:5px 4px 4px;overflow:hidden;min-width:0;
+}
+.gate-wrap{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  min-height:0;width:100%;
+}
+.gate-svg{
+  width:100%;height:100%;
+  /* keep square, don't overflow */
+  max-width:100%;max-height:100%;
+  overflow:visible;
+}
+
+.lst-row{display:flex;justify-content:space-between;padding:2px 6px;flex-shrink:0;}
+.lst-label{font-size:8px;color:var(--teal-dim);letter-spacing:2px;text-transform:uppercase;}
+
+.engaged-wrap{
+  flex-shrink:0;
+  background:var(--bg-card);border:1px solid var(--teal-dim);
+  padding:3px 8px;display:flex;align-items:center;justify-content:space-between;
+  position:relative;overflow:hidden;
+}
+.engaged-wrap::before{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(90deg,transparent,transparent 8px,rgba(0,212,200,0.02) 8px,rgba(0,212,200,0.02) 9px);}
+.engaged-text{
+  font-family:'Orbitron',monospace;
+  font-size:clamp(13px,2.2vw,26px);
+  font-weight:700;letter-spacing:clamp(2px,0.6vw,8px);
+  color:var(--teal-dim);text-transform:uppercase;
+  transition:all .4s;position:relative;z-index:1;
+}
+.engaged-text.on{color:var(--teal);text-shadow:0 0 20px var(--teal),0 0 40px rgba(0,212,200,.4);}
+.engaged-bars{display:flex;flex-direction:column;gap:2px;z-index:1;}
+.e-bar{width:12px;height:3px;background:var(--teal-dim);transition:all .3s;}
+.e-bar.on{background:var(--teal);box-shadow:0 0 6px var(--teal);}
+
+/* RIGHT PANEL */
+.dial-right{
+  display:flex;flex-direction:column;gap:3px;
+  background:var(--bg-panel);border:1px solid var(--teal-dim);
+  padding:5px;overflow:hidden;min-width:0;
+}
+.dest-label{font-size:8px;color:var(--teal-dim);letter-spacing:3px;text-align:right;
+  padding-bottom:2px;border-bottom:1px solid var(--teal-dim);flex-shrink:0;}
+.dest-name{font-family:'Orbitron',monospace;font-size:clamp(9px,1.3vw,14px);color:var(--teal);
+  text-align:right;letter-spacing:2px;min-height:16px;padding:2px 0;flex-shrink:0;}
+
+.sym-list{flex:1;display:flex;flex-direction:column;gap:2px;min-height:0;}
+.sym-row{display:flex;align-items:center;gap:0;flex:1;min-height:0;}
+.sym-num{font-size:8px;color:var(--teal-dim);width:14px;text-align:center;flex-shrink:0;}
+/* red line from number to box */
+.sym-line{width:12px;height:1px;background:var(--red);opacity:.7;flex-shrink:0;}
+.sym-box{
+  flex:1;border:1px solid var(--red);background:var(--bg-card);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:all .3s;position:relative;min-height:0;padding:1px;height:100%;
+}
+.sym-box::before{content:'';position:absolute;inset:0;background:var(--red-glow);opacity:0;transition:opacity .3s;}
+.sym-box.locked::before{opacity:1;}
+.sym-box.locked{border-color:var(--red-bright);box-shadow:0 0 6px rgba(255,51,0,.2);}
+.sym-glyph{font-size:clamp(11px,1.4vw,18px);color:var(--teal-dim);transition:color .3s;position:relative;z-index:1;line-height:1;}
+.sym-box.locked .sym-glyph{color:#fff;text-shadow:0 0 6px #fff;}
+.sym-name{font-size:5px;color:var(--text-dim);letter-spacing:.5px;position:relative;z-index:1;text-transform:uppercase;}
+
+/* ADDRESS BOOK */
+#view-addr{display:none;flex-direction:column;background:var(--bg-panel);border:1px solid var(--teal-dim);}
+#view-addr.active{display:flex;}
+.addr-header{padding:5px 10px 4px;border-bottom:2px solid var(--teal-dim);flex-shrink:0;}
+.addr-title{font-family:'Orbitron',monospace;font-size:11px;color:var(--teal);letter-spacing:3px;}
+.addr-title span{color:var(--teal-dim);font-size:9px;}
+.addr-col-headers{
+  display:grid;grid-template-columns:22px repeat(7,1fr) 200px;
+  gap:2px;padding:3px 10px;border-bottom:1px solid var(--teal-dim);flex-shrink:0;
+}
+.addr-col-h{font-size:8px;color:var(--teal-dim);text-align:center;}
+.addr-col-h.prof{text-align:left;padding-left:6px;}
+.addr-scroll{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--teal-dim) transparent;}
+.addr-row{
+  display:grid;grid-template-columns:22px repeat(7,1fr) 200px;
+  gap:2px;padding:3px 10px;border-bottom:1px solid rgba(0,212,200,.06);
+  align-items:center;cursor:pointer;transition:background .15s;min-height:52px;
+}
+.addr-row:hover{background:rgba(0,212,200,.04);}
+.addr-row.sel{background:rgba(0,212,200,.08);border-left:2px solid var(--teal);}
+.addr-id{font-size:8px;color:var(--teal-dim);writing-mode:vertical-rl;text-align:center;font-weight:bold;}
+.addr-sym-cell{display:flex;flex-direction:column;align-items:center;gap:1px;}
+.addr-sym-box{width:34px;height:28px;border:1px solid var(--teal-dim);background:var(--bg-card);
+  display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--teal-dim);}
+.addr-sym-name{font-size:6px;color:var(--text-dim);text-align:center;text-transform:uppercase;}
+.addr-profile{padding:0 0 0 6px;}
+.addr-pname{font-family:'Orbitron',monospace;font-size:11px;color:var(--teal);letter-spacing:2px;}
+.addr-pstatus{font-size:7px;color:var(--green);text-shadow:0 0 4px var(--green);}
+.addr-pstatus.off{color:var(--text-dim);text-shadow:none;}
+.addr-pnum{font-size:7px;color:var(--teal-dim);}
+.addr-pdetail{display:grid;grid-template-columns:1fr 1fr;gap:0 4px;margin-top:1px;}
+.addr-pd{font-size:7px;color:var(--text-dim);}
+.addr-pd span{color:var(--teal-dim);}
+.addr-footer{display:flex;gap:3px;align-items:center;padding:3px 10px;border-top:1px solid var(--teal-dim);flex-shrink:0;}
+.addr-f-btn{font-size:8px;padding:2px 7px;border:1px solid var(--teal-dim);background:transparent;
+  color:var(--teal-dim);cursor:pointer;text-transform:uppercase;transition:all .15s;}
+.addr-f-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-glow);}
+.addr-progress{flex:1;background:var(--bg-card);border:1px solid var(--teal-dim);height:13px;position:relative;overflow:hidden;}
+.addr-prog-bar{height:100%;background:var(--teal-dim);}
+.addr-prog-lbl{position:absolute;inset:0;display:flex;align-items:center;padding:0 5px;font-size:7px;color:var(--teal);letter-spacing:1px;}
+
+/* SIGNALS */
+#view-sig{display:none;flex-direction:column;background:var(--bg-panel);border:1px solid var(--teal-dim);padding:7px;overflow-y:auto;gap:5px;}
+#view-sig.active{display:flex;}
+.sig-header{font-family:'Orbitron',monospace;font-size:9px;color:var(--teal-dim);letter-spacing:3px;padding-bottom:5px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.filter-row{display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0;}
+.filter-btn{font-size:8px;padding:2px 6px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;text-transform:uppercase;transition:all .15s;}
+.filter-btn.on{border-color:var(--teal);color:var(--teal);background:var(--teal-glow);}
+.signal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px;}
+.sig-card{background:var(--bg-card);border:1px solid var(--border);padding:7px;cursor:pointer;transition:all .2s;
+  clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%);}
+.sig-card:hover{border-color:var(--teal-dim);}
+.sig-card.active{border-color:var(--teal);background:var(--teal-glow);}
+.sig-card.warning{border-color:var(--amber);background:rgba(245,166,35,.05);}
+.sig-card.critical{border-color:var(--red-bright);background:rgba(204,34,0,.06);animation:blink-c 1s ease-in-out infinite;}
+@keyframes blink-c{0%,100%{opacity:1}50%{opacity:.7}}
+.sig-id{font-size:7px;color:var(--text-dim);letter-spacing:2px;margin-bottom:2px;}
+.sig-name{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:11px;margin-bottom:4px;line-height:1.2;}
+.sig-bars{display:flex;gap:2px;align-items:flex-end;margin-bottom:4px;}
+.s-bar{width:4px;border-radius:1px;background:var(--teal-dim);}
+.s-bar.on{background:var(--teal);box-shadow:0 0 3px var(--teal);}
+.s-bar.wn{background:var(--amber);box-shadow:0 0 3px var(--amber);}
+.s-bar.cr{background:var(--red-bright);box-shadow:0 0 3px var(--red-bright);}
+.sig-tags{display:flex;gap:3px;flex-wrap:wrap;}
+.s-tag{font-size:6px;padding:1px 3px;border:1px solid var(--border);color:var(--text-dim);}
+.s-tag.enc{border-color:var(--teal-dim);color:var(--teal-dim);}
+.s-tag.pri{border-color:var(--amber);color:var(--amber);}
+.s-tag.thr{border-color:var(--red-bright);color:var(--red-bright);}
+
+/* STATUS BAR */
+.statusbar{
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg-panel);border:1px solid var(--teal-dim);
+  padding:0 8px;font-size:7px;color:var(--text-dim);letter-spacing:1px;
+}
+.sb-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;animation:pdot 2s ease-in-out infinite;}
+.sd-g{background:var(--green);box-shadow:0 0 4px var(--green);}
+.sd-a{background:var(--amber);box-shadow:0 0 4px var(--amber);animation-delay:.5s;}
+.sd-r{background:var(--red-bright);box-shadow:0 0 4px var(--red-bright);animation-delay:1s;}
+@keyframes pdot{0%,100%{opacity:1}50%{opacity:.2}}
+.sb-sep{width:1px;height:12px;background:var(--teal-dim);flex-shrink:0;}
+.sb-tick{flex:1;overflow:hidden;}
+.sb-tick-in{white-space:nowrap;animation:tick-sc 35s linear infinite;color:var(--teal-dim);}
+@keyframes tick-sc{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}
+::-webkit-scrollbar{width:3px;}
+::-webkit-scrollbar-thumb{background:var(--teal-dim);}
+
+@media(max-width:680px){
+  #view-dial{grid-template-columns:130px 1fr 140px;}
+}
+@media(max-height:440px){
+  .frame{grid-template-rows:26px 1fr 18px;padding:2px;gap:2px;}
+  .tb-sub{display:none;}
+}
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <div class="titlebar">
+    <div class="tb-title">SGC DIALING COMPUTER</div>
+    <div class="tb-sub">CHEYENNE MOUNTAIN · AUTH LEVEL 18</div>
+    <div class="tb-space"></div>
+    <div class="tb-nav">
+      <button class="tb-btn active" id="nav-dial" onclick="switchView('dial')">DIALING</button>
+      <button class="tb-btn"        id="nav-addr" onclick="switchView('addr')">ADDRESS BOOK</button>
+      <button class="tb-btn"        id="nav-sig"  onclick="switchView('sig')">SIGNALS</button>
+    </div>
+    <div id="clock"></div>
+  </div>
+
+  <!-- DIALING VIEW -->
+  <div id="view-dial" class="view active">
+
+    <div class="dial-left">
+      <div class="binary-wrap">
+        <div class="binary-col" id="binCol1" style="--dur:13s"></div>
+        <div class="binary-col" id="binCol2" style="--dur:9s"></div>
+      </div>
+      <div class="chev-wrap">
+        <div class="chev-title">CHEVRON STATUS</div>
+        <div class="chev-list" id="chevList"></div>
+      </div>
+      <div class="dhd-wrap">
+        <div class="dhd-title">DHD · SYMBOL SELECT</div>
+        <div class="dhd-grid" id="dhdGrid"></div>
+      </div>
+      <div class="gate-btns-wrap">
+        <div class="gate-btns">
+          <button class="g-btn" id="dialBtn" onclick="toggleDial()">⬡ DIAL GATE</button>
+          <button class="g-btn abort"        onclick="abortDial()">✕ ABORT</button>
+        </div>
+        <div class="gate-btns">
+          <button class="g-btn" id="irisBtn" onclick="toggleIris()">IRIS: CLOSED</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dial-center">
+      <div class="gate-wrap">
+        <svg id="gateSvg" class="gate-svg" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="ehGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stop-color="#ccfffc"/>
+              <stop offset="18%"  stop-color="#00d4c8"/>
+              <stop offset="55%"  stop-color="#006b67"/>
+              <stop offset="100%" stop-color="#010a0c"/>
+            </radialGradient>
+            <filter id="cglow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <!-- outer rings -->
+          <circle cx="250" cy="250" r="240" fill="none" stroke="#002a27" stroke-width="3"/>
+          <circle cx="250" cy="250" r="236" fill="none" stroke="#00d4c8" stroke-width="1" opacity=".3"/>
+
+          <!-- track band -->
+          <circle cx="250" cy="250" r="213" fill="none" stroke="#002020" stroke-width="36"/>
+          <circle cx="250" cy="250" r="231" fill="none" stroke="#005a57" stroke-width="1"/>
+          <circle cx="250" cy="250" r="195" fill="none" stroke="#005a57" stroke-width="1"/>
+
+          <!-- inner ring -->
+          <circle cx="250" cy="250" r="182" fill="none" stroke="#006b67" stroke-width="2"/>
+          <!-- inner dark band -->
+          <circle cx="250" cy="250" r="172" fill="none" stroke="#001a1a" stroke-width="18"/>
+          <circle cx="250" cy="250" r="181" fill="none" stroke="#004545" stroke-width="1"/>
+          <circle cx="250" cy="250" r="163" fill="none" stroke="#004545" stroke-width="1"/>
+
+          <!-- event horizon -->
+          <circle id="ehCircle" cx="250" cy="250" r="158" fill="#010a0c"/>
+          <circle cx="250" cy="250" r="158" fill="none" stroke="#003535" stroke-width="1"/>
+
+          <!-- center symbol -->
+          <text id="centerSym" x="250" y="276" text-anchor="middle"
+                font-family="Share Tech Mono" font-size="84" fill="#006b67" opacity=".4">◈</text>
+
+          <!--
+            9 CHEVRONS as inward-pointing triangles on the track.
+            Track center radius = 213. Chevron tip at r=192, base at r=234, half-width=13.
+            Positions (angle from top, clockwise):
+              csv0=0° csv1=40° csv2=80° csv3=130° csv4=168°
+              csv5=180° csv6=212° csv7=260° csv8=280°
+
+            Point formula (angle a in radians from top = -π/2 + deg*π/180):
+              tip_x  = 250 + 192*sin(a)   tip_y  = 250 - 192*cos(a)
+              base_x = 250 + 234*sin(a)   base_y = 250 - 234*cos(a)
+              left_x = base_x - 13*cos(a) left_y = base_y - 13*(-sin(a)) ... 
+            Using perpendicular: left = base + 13*(cos a, sin a), right = base - 13*(cos a, sin a)
+            (perpendicular to radial direction)
+
+            Pre-computed (rounded):
+          -->
+          <g id="csvg">
+            <!-- csv0: 0° top -->
+            <polygon id="csv0" points="250,58  237,97  263,97"  fill="#3a0800" stroke="#880000" stroke-width="1.5"/>
+            <!-- csv1: 40° upper-right -->
+            <polygon id="csv1" points="374,92  351,128 381,138" fill="#3a0800" stroke="#880000" stroke-width="1.5"/>
+            <!-- csv2: 80° right-upper -->
+            <polygon id="csv2" points="439,197 419,230 446,240" fill="#3a0800" stroke="#880000" stroke-width="1.5"/>
+            <!-- csv3: 130° right-lower -->
+            <polygon id="csv3" points="432,340 402,322 398,352" fill="#3a0800" stroke="#880000" stroke-width="1.5"/>
+            <!-- csv4: 168° bottom-right -->
+            <polygon id="csv4" points="302,443 293,410 321,406" fill="#3a0800" stroke="#880000" stroke-width="1.5"/>
+            <!-- csv5: 180° bottom -->
+            <polygon id="csv5" points="250,442 237,403 263,403" fill="#3a0800" stroke="#880000" stroke-width="1.5"/>
+            <!-- csv6: 212° bottom-left -->
+            <polygon id="csv6" points="198,443 207,410 179,406" fill="#3a0800" stroke="#880000" stroke-width="1.5"/>
+            <!-- csv7: 260° left-upper -->
+            <polygon id="csv7" points="68,340  98,322  102,352" fill="#3a0800" stroke="#880000" stroke-width="1.5"/>
+            <!-- csv8: 280° left-upper -->
+            <polygon id="csv8" points="61,197  81,230  54,240"  fill="#3a0800" stroke="#880000" stroke-width="1.5"/>
+          </g>
+
+          <!--
+            RED CONNECTOR LINES from right-side chevrons to the right edge of SVG.
+            We connect from the midpoint of each right-side chevron outward.
+            csv1 (40°) base midpoint ≈ (366,133)
+            csv2 (80°) base midpoint ≈ (433,235)
+            csv3 (130°) base midpoint ≈ (400,337)
+            csv4 (168°) base midpoint ≈ (307,408)
+            These go horizontally to x=498, then a vertical line connects them.
+          -->
+          <g id="redLines" stroke="#aa1100" stroke-width="1.2" fill="none" opacity=".85">
+            <!-- horizontal from each right chevron to right edge -->
+            <line id="rl1" x1="371" y1="133" x2="498" y2="133"/>
+            <line id="rl2" x1="433" y1="235" x2="498" y2="235"/>
+            <line id="rl3" x1="415" y1="337" x2="498" y2="337"/>
+            <line id="rl4" x1="315" y1="408" x2="498" y2="408"/>
+            <!-- vertical spine on right edge -->
+            <line x1="497" y1="133" x2="497" y2="408"/>
+            <!-- small tick marks on spine at 1/3 2/3 -->
+            <line x1="492" y1="235" x2="498" y2="235"/>
+            <line x1="492" y1="337" x2="498" y2="337"/>
+          </g>
+
+          <!-- notch tick marks on track at every ~25° -->
+          <g stroke="#007a75" stroke-width="1.2" stroke-linecap="round">
+            <!-- 13 evenly spaced marks, computed at r=213 outer/r=195 inner -->
+            <line x1="250" y1="37"  x2="250" y2="55"/>
+            <line x1="294" y1="41"  x2="290" y2="58"/>
+            <line x1="333" y1="54"  x2="325" y2="70"/>
+            <line x1="363" y1="77"  x2="352" y2="90"/>
+            <line x1="418" y1="143" x2="406" y2="150"/>
+            <line x1="443" y1="190" x2="430" y2="196"/>
+            <line x1="450" y1="250" x2="437" y2="250"/>
+            <line x1="418" y1="357" x2="406" y2="350"/>
+            <line x1="363" y1="423" x2="352" y2="410"/>
+            <line x1="250" y1="463" x2="250" y2="445"/>
+            <line x1="137" y1="423" x2="148" y2="410"/>
+            <line x1="82"  y1="357" x2="94"  y2="350"/>
+            <line x1="57"  y1="250" x2="63"  y2="250"/>
+            <line x1="82"  y1="143" x2="94"  y2="150"/>
+            <line x1="137" y1="77"  x2="148" y2="90"/>
+            <line x1="206" y1="41"  x2="210" y2="58"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="lst-row">
+        <div class="lst-label">LST CODE #1</div>
+        <div class="lst-label">LST CODE #2</div>
+      </div>
+
+      <div class="engaged-wrap">
+        <div class="engaged-text" id="engagedText">IDLE</div>
+        <div class="engaged-bars">
+          <div class="e-bar" id="eb0"></div>
+          <div class="e-bar" id="eb1"></div>
+          <div class="e-bar" id="eb2"></div>
+          <div class="e-bar" id="eb3"></div>
+          <div class="e-bar" id="eb4"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dial-right">
+      <div class="dest-label">DESTINATION</div>
+      <div class="dest-name" id="destName">—</div>
+      <div class="sym-list" id="symList"></div>
+    </div>
+
+  </div><!-- /view-dial -->
+
+  <!-- ADDRESS BOOK -->
+  <div id="view-addr" class="view">
+    <div class="addr-header">
+      <div class="addr-title">SYSTEM GLYPHS <span>/ FILE ARCHIVE / DISPLAY COMPLETE</span></div>
+    </div>
+    <div class="addr-col-headers">
+      <div class="addr-col-h">#</div>
+      <div class="addr-col-h">1</div><div class="addr-col-h">2</div>
+      <div class="addr-col-h">3</div><div class="addr-col-h">4</div>
+      <div class="addr-col-h">5</div><div class="addr-col-h">6</div>
+      <div class="addr-col-h">7</div>
+      <div class="addr-col-h prof">PROFILE</div>
+    </div>
+    <div class="addr-scroll" id="addrScroll"></div>
+    <div class="addr-footer">
+      <button class="addr-f-btn">ALERT</button>
+      <button class="addr-f-btn">FILT</button>
+      <button class="addr-f-btn">ADDRSS</button>
+      <button class="addr-f-btn">D TABLE</button>
+      <button class="addr-f-btn">VIEW</button>
+      <div class="addr-progress">
+        <div class="addr-prog-bar" style="width:100%"></div>
+        <div class="addr-prog-lbl">PRIMARY CATALOG LOADED</div>
+      </div>
+      <button class="addr-f-btn">EXIT</button>
+    </div>
+  </div>
+
+  <!-- SIGNALS -->
+  <div id="view-sig" class="view">
+    <div class="sig-header">▸ INCOMING SIGNAL REGISTRY</div>
+    <div class="filter-row" id="filterRow"></div>
+    <div class="signal-grid" id="signalGrid"></div>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="statusbar">
+    <div class="sb-dot sd-g"></div><span id="irisStatus">IRIS CLOSED</span>
+    <div class="sb-sep"></div>
+    <div class="sb-dot sd-g"></div><span>GATE IDLE</span>
+    <div class="sb-sep"></div>
+    <div class="sb-dot sd-a"></div><span>SG-1 OFFWORLD</span>
+    <div class="sb-sep"></div>
+    <div class="sb-dot sd-r"></div><span>ALERT LVL 3</span>
+    <div class="sb-sep"></div>
+    <div class="sb-tick"><div class="sb-tick-in" id="ticker"></div></div>
+    <div class="sb-sep"></div>
+    <span>USER: SGT. W. DAVIS 102951-8</span>
+    <div class="sb-sep"></div><span>STATUS: ACTIVE</span>
+    <div class="sb-sep"></div><span>SYS: NOMINAL</span>
+  </div>
+
+</div>
+
+<script>
+const GLYPHS=[
+  {n:'TAURUS',s:'♉'},{n:'SERPENS',s:'≋'},{n:'CAPRIC.',s:'♑'},
+  {n:'MONOCE.',s:'⊙'},{n:'SAGITTA.',s:'♐'},{n:'ORION',s:'⚔'},
+  {n:'EARTH',s:'⊕'},{n:'SCORPIO',s:'♏'},{n:'CRATER',s:'◈'},
+  {n:'TRIANGU.',s:'⌬'},{n:'SEXTANS',s:'⊞'},{n:'SCULPT.',s:'⬟'},
+  {n:'SCUTUM',s:'◇'},{n:'LYNX',s:'♊'},{n:'ANDROM.',s:'⊗'},
+  {n:'EQUULE.',s:'≈'},{n:'LIBRA',s:'♎'},{n:'CETUS',s:'♋'},
+  {n:'AURIGA',s:'♈'},{n:'LEO MIN.',s:'♌'},{n:'VIRGO',s:'♍'},
+  {n:'PISCES A.',s:'♓'},{n:'AQUAR.',s:'♒'},{n:'BOOTES',s:'⬡'},
+  {n:'ERIDAN.',s:'⊘'},{n:'NORMA',s:'⌖'},{n:'PERSEUS',s:'⚡'},
+];
+const DIAL_SEQ=['TAURUS','SERPENS','CAPRIC.','MONOCE.','SAGITTA.','ORION','EARTH'];
+const AB=[
+  {id:'AB',name:'ABYDOS',   num:'#81001',st:'ACTIVE',
+   g:['TAURUS','SERPENS','CAPRIC.','MONOCE.','SAGITTA.','ORION','EARTH'],
+   malp:'YES',msn:'YES',expo:'YES',tgi:'1',tpg:'NO',hstl:'NO',xai:'1',day:'32 HRS'},
+  {id:'CH',name:'CHULAK',   num:'#81002',st:'ACTIVE',
+   g:['SCORPIO','CRATER','TRIANGU.','CAPRIC.','SEXTANS','SCULPT.','EARTH'],
+   malp:'YES',msn:'YES',expo:'YES',tgi:'1',tpg:'NO',hstl:'NO',xai:'1',day:'26 HRS'},
+  {id:'CI',name:'CIMMERIA', num:'#81003',st:'ACTIVE',
+   g:['SCUTUM','LYNX','ANDROM.','EQUULE.','LIBRA','CETUS','EARTH'],
+   malp:'YES',msn:'YES',expo:'YES',tgi:'1',tpg:'NO',hstl:'NO',xai:'0',day:'23 HRS'},
+  {id:'ED',name:'EDORA',    num:'#81004',st:'ACTIVE',
+   g:['AURIGA','LEO MIN.','LYNX','SCORPIO','CAPRIC.','VIRGO','EARTH'],
+   malp:'YES',msn:'YES',expo:'YES',tgi:'0',tpg:'NO',hstl:'NO',xai:'1',day:'24 HRS'},
+  {id:'UR',name:'URONDA',   num:'#81005',st:'ACTIVE',
+   g:['ORION','TAURUS','SCORPIO','SERPENS','AQUAR.','PISCES A.','EARTH'],
+   malp:'YES',msn:'YES',expo:'YES',tgi:'0',tpg:'NO',hstl:'NO',xai:'0',day:'25 HRS'},
+  {id:'TO',name:'TOLLANA',  num:'#81006',st:'ACTIVE',
+   g:['BOOTES','ERIDAN.','NORMA','ANDROM.','AQUAR.','PERSEUS','EARTH'],
+   malp:'YES',msn:'YES',expo:'YES',tgi:'1',tpg:'YES',hstl:'NO',xai:'1',day:'23 HRS'},
+  {id:'KH',name:'KHEB',     num:'#81007',st:'UNKNOWN',
+   g:['SCORPIO','CAPRIC.','TRIANGU.','SEXTANS','ORION','LYNX','EARTH'],
+   malp:'NO',msn:'NO',expo:'NO',tgi:'0',tpg:'NO',hstl:'NO',xai:'0',day:'?'},
+  {id:'NA',name:'NETU',     num:'#81008',st:'INACTIVE',
+   g:['AQUAR.','VIRGO','SCORPIO','CAPRIC.','TRIANGU.','SAGITTA.','EARTH'],
+   malp:'YES',msn:'YES',expo:'NO',tgi:'1',tpg:'NO',hstl:'YES',xai:'2',day:'18 HRS'},
+  {id:'DA',name:'DAKARA',   num:'#81009',st:'ACTIVE',
+   g:['MONOCE.','SCULPT.','LYNX','AQUAR.','BOOTES','TAURUS','EARTH'],
+   malp:'YES',msn:'YES',expo:'YES',tgi:'1',tpg:'NO',hstl:'NO',xai:'1',day:'27 HRS'},
+  {id:'LA',name:'LANGARA',  num:'#81010',st:'ACTIVE',
+   g:['SEXTANS','ANDROM.','CAPRIC.','SCUTUM','PISCES A.','ERIDAN.','EARTH'],
+   malp:'YES',msn:'YES',expo:'YES',tgi:'1',tpg:'YES',hstl:'NO',xai:'1',day:'22 HRS'},
+  {id:'PX',name:'P3X-888',  num:'#81011',st:'RESTRICTED',
+   g:['CETUS','LIBRA','TAURUS','SCORPIO','ANDROM.','MONOCE.','EARTH'],
+   malp:'YES',msn:'NO',expo:'NO',tgi:'2',tpg:'NO',hstl:'YES',xai:'3',day:'29 HRS'},
+  {id:'HE',name:'HELIOPOLIS',num:'#81012',st:'INACTIVE',
+   g:['PERSEUS','NORMA','ERIDAN.','BOOTES','CETUS','SCUTUM','EARTH'],
+   malp:'NO',msn:'YES',expo:'YES',tgi:'0',tpg:'YES',hstl:'NO',xai:'0',day:'31 HRS'},
+];
+const SIG_TYPES=['RADIO','SUBSPACE','NAQUADAH','ANCIENT','GOULD','ASGARD','KEPLER','VISUAL'];
+const LOCS=['ABYDOS','CHULAK','DAKARA','TOLLANA','ORBAN','NETU','PX9-757','P3X-888','LANGARA'];
+const TEAMS=['SG-1','SG-2','SG-3','SG-7','SG-9','SG-11','MALP-3','BEACON','PROBE-2'];
+const rI=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const rP=a=>a[rI(0,a.length-1)];
+const rId=()=>'SIG-'+Math.random().toString(36).slice(2,6).toUpperCase();
+
+let gateState='idle',dialStep=0,dialInterval=null,irisOpen=false;
+let signals=genSigs(16),activeFilter='ALL';
+
+document.addEventListener('DOMContentLoaded',()=>{
+  startClock(); buildBinary(); buildChevList(); buildDHD();
+  buildSymList(); buildAddrBook(); buildFilters(); renderSignals(); startTicker();
+  setInterval(()=>{
+    const i=rI(0,signals.length-1);
+    signals[i].strength=rI(1,5);
+    signals[i].status=Math.random()<.08?'critical':Math.random()<.18?'warning':Math.random()<.5?'active':'idle';
+    if(document.getElementById('view-sig').classList.contains('active')) renderSignals();
+  },3500);
+});
+
+function startClock(){
+  const el=document.getElementById('clock');
+  const u=()=>{el.textContent=new Date().toISOString().replace('T',' ').slice(0,19)+' UTC';};
+  u();setInterval(u,1000);
+}
+
+function mkBin(){let s='';for(let i=0;i<rI(6,12);i++)s+=rI(0,1);return s;}
+function buildBinary(){
+  [1,2].forEach(n=>{
+    const col=document.getElementById('binCol'+n);
+    let h='';for(let i=0;i<90;i++)h+=`<div class="bin-line${Math.random()<.13?' bright':''}">${mkBin()}</div>`;
+    col.innerHTML=h+h;
+  });
+  setInterval(()=>{
+    document.querySelectorAll('.bin-line').forEach(el=>{
+      if(Math.random()<.07){el.textContent=mkBin();el.classList.toggle('bright',Math.random()<.13);}
+    });
+  },160);
+}
+
+function buildChevList(){
+  document.getElementById('chevList').innerHTML=[...Array(7)].map((_,i)=>`
+    <div class="chev-row">
+      <div class="chev-num">${i+1}</div>
+      <div class="chev-bars">
+        <div class="chev-bar" id="cb${i+1}a"></div>
+        <div class="chev-bar" id="cb${i+1}b"></div>
+      </div>
+      <div class="chev-ok off" id="cok${i+1}">OK</div>
+    </div>`).join('');
+}
+function setChev(n,state){
+  const a=document.getElementById('cb'+n+'a'),b=document.getElementById('cb'+n+'b'),ok=document.getElementById('cok'+n);
+  a.className='chev-bar';b.className='chev-bar';ok.className='chev-ok off';
+  if(state==='active'){a.classList.add('rng');b.classList.add('rng');}
+  if(state==='locked'){a.classList.add('on');b.classList.add('on');ok.classList.remove('off');}
+}
+function resetChevs(){for(let i=1;i<=7;i++)setChev(i,'idle');}
+
+function buildDHD(){
+  const g=document.getElementById('dhdGrid');
+  GLYPHS.slice(0,25).forEach(gl=>{
+    const b=document.createElement('button');
+    b.className='dhd-btn';b.textContent=gl.s;b.title=gl.n;
+    b.onclick=()=>b.classList.toggle('active');
+    g.appendChild(b);
+  });
+}
+
+function buildSymList(){
+  document.getElementById('symList').innerHTML=[...Array(7)].map((_,i)=>`
+    <div class="sym-row">
+      <div class="sym-num">${i+1}</div>
+      <div class="sym-line"></div>
+      <div class="sym-box" id="symbox${i+1}">
+        <div class="sym-glyph" id="symg${i+1}">—</div>
+        <div class="sym-name"  id="symn${i+1}"></div>
+      </div>
+    </div>`).join('');
+}
+function lockSym(n,gl){
+  document.getElementById('symbox'+n).classList.add('locked');
+  document.getElementById('symg'+n).textContent=gl.s;
+  document.getElementById('symn'+n).textContent=gl.n;
+}
+function resetSyms(){
+  for(let i=1;i<=7;i++){
+    document.getElementById('symbox'+i).classList.remove('locked');
+    document.getElementById('symg'+i).textContent='—';
+    document.getElementById('symn'+i).textContent='';
+  }
+}
+
+function setSvgChev(i,state){
+  const el=document.getElementById('csv'+i);if(!el)return;
+  if(state==='locked'){el.setAttribute('fill','#cc2200');el.setAttribute('stroke','#ff4422');el.setAttribute('filter','url(#cglow)');}
+  else if(state==='active'){el.setAttribute('fill','#661100');el.setAttribute('stroke','#cc2200');el.removeAttribute('filter');}
+  else{el.setAttribute('fill','#3a0800');el.setAttribute('stroke','#880000');el.removeAttribute('filter');}
+}
+function resetSvgChevs(){for(let i=0;i<9;i++)setSvgChev(i,'idle');}
+
+// Gate control
+// SVG chevron index mapping for dial sequence (spread across right-side chevrons 1-4, then bottom, then left)
+const CHEV_ORDER=[1,2,3,4,5,6,7]; // which svg chevron to light per dial step (0-indexed into csv1..csv7)
+
+function toggleDial(){
+  if(gateState==='idle')startDial();
+  else if(gateState==='engaged')abortDial();
+}
+function startDial(){
+  if(gateState!=='idle')return;
+  gateState='dialing';dialStep=0;
+  document.getElementById('dialBtn').textContent='⟳ DIALING';
+  document.getElementById('engagedText').textContent='DIALING';
+  document.getElementById('engagedText').classList.remove('on');
+  document.getElementById('destName').textContent='—';
+  dialInterval=setInterval(()=>{
+    const gl=GLYPHS.find(g=>g.n===DIAL_SEQ[dialStep])||GLYPHS[dialStep];
+    const svgIdx=dialStep+1; // csv1 through csv7
+    setChev(dialStep+1,'active');
+    setSvgChev(svgIdx,'active');
+    setTimeout(()=>{
+      setChev(dialStep+1,'locked');
+      setSvgChev(svgIdx,'locked');
+      lockSym(dialStep+1,gl);
+      document.getElementById('centerSym').textContent=gl.s;
+    },420);
+    dialStep++;
+    if(dialStep>=7)setTimeout(engageGate,600);
+  },1100);
+}
+function engageGate(){
+  clearInterval(dialInterval);gateState='engaged';
+  document.getElementById('dialBtn').textContent='⬡ ENGAGED';
+  document.getElementById('engagedText').textContent='ENGAGED';
+  document.getElementById('engagedText').classList.add('on');
+  document.getElementById('destName').textContent='ABYDOS';
+  setSvgChev(0,'locked');
+  for(let i=0;i<5;i++)setTimeout(()=>document.getElementById('eb'+i).classList.add('on'),i*110);
+  document.getElementById('ehCircle').setAttribute('fill','url(#ehGrad)');
+}
+function abortDial(){
+  clearInterval(dialInterval);gateState='idle';dialStep=0;
+  document.getElementById('dialBtn').textContent='⬡ DIAL GATE';
+  document.getElementById('engagedText').textContent='IDLE';
+  document.getElementById('engagedText').classList.remove('on');
+  document.getElementById('destName').textContent='—';
+  document.getElementById('centerSym').textContent='◈';
+  document.getElementById('ehCircle').setAttribute('fill','#010a0c');
+  for(let i=0;i<5;i++)document.getElementById('eb'+i).classList.remove('on');
+  resetChevs();resetSvgChevs();resetSyms();
+  document.querySelectorAll('.dhd-btn').forEach(b=>b.classList.remove('active'));
+}
+
+function toggleIris(){
+  irisOpen=!irisOpen;
+  const btn=document.getElementById('irisBtn');
+  btn.textContent=irisOpen?'IRIS: OPEN':'IRIS: CLOSED';
+  btn.classList.toggle('iris-open',irisOpen);
+  document.getElementById('irisStatus').textContent=irisOpen?'IRIS OPEN':'IRIS CLOSED';
+}
+
+function buildAddrBook(){
+  document.getElementById('addrScroll').innerHTML=AB.map((p,idx)=>{
+    const syms=p.g.map(name=>{
+      const g=GLYPHS.find(x=>x.n===name)||{s:'?',n:name};
+      return `<div class="addr-sym-cell"><div class="addr-sym-box">${g.s}</div><div class="addr-sym-name">${name}</div></div>`;
+    }).join('');
+    return `<div class="addr-row" id="ar${idx}" onclick="selAddr(${idx})">
+      <div class="addr-id">${p.id}</div>${syms}
+      <div class="addr-profile">
+        <div class="addr-pname">${p.name}</div>
+        <div class="addr-pstatus${p.st==='ACTIVE'?'':' off'}">${p.st}</div>
+        <div class="addr-pnum">${p.num}</div>
+        <div class="addr-pdetail">
+          <div class="addr-pd">MALP:<span>${p.malp}</span></div>
+          <div class="addr-pd">MSN HSTY:<span>${p.msn}</span></div>
+          <div class="addr-pd">EXPO:<span>${p.expo}</span></div>
+          <div class="addr-pd">TGI:<span>${p.tgi}</span></div>
+          <div class="addr-pd">TPGRPHC:<span>${p.tpg}</span></div>
+          <div class="addr-pd">DAY CYCLE:<span>${p.day}</span></div>
+        </div>
+      </div></div>`;
+  }).join('');
+}
+function selAddr(idx){
+  document.querySelectorAll('.addr-row').forEach(r=>r.classList.remove('sel'));
+  document.getElementById('ar'+idx).classList.add('sel');
+}
+
+function genSigs(n){
+  return Array.from({length:n},()=>({
+    id:rId(),name:rP(TEAMS)+' · '+rP(LOCS),type:rP(SIG_TYPES),
+    strength:rI(1,5),
+    status:Math.random()<.1?'critical':Math.random()<.2?'warning':Math.random()<.5?'active':'idle',
+    encrypted:Math.random()>.5,priority:Math.random()>.7,
+    freq:(rI(1200,1800)/100).toFixed(2),
+  }));
+}
+const FILTERS=['ALL','RADIO','SUBSPACE','NAQUADAH','ANCIENT','GOULD','ASGARD'];
+function buildFilters(){
+  const row=document.getElementById('filterRow');
+  FILTERS.forEach(f=>{
+    const b=document.createElement('button');
+    b.className='filter-btn'+(f==='ALL'?' on':'');b.textContent=f;
+    b.onclick=()=>{document.querySelectorAll('.filter-btn').forEach(x=>x.classList.remove('on'));b.classList.add('on');activeFilter=f;renderSignals();};
+    row.appendChild(b);
+  });
+}
+function renderSignals(){
+  const grid=document.getElementById('signalGrid');
+  const list=activeFilter==='ALL'?signals:signals.filter(s=>s.type===activeFilter);
+  grid.innerHTML='';
+  list.forEach(sig=>{
+    const card=document.createElement('div');
+    card.className='sig-card'+(sig.status==='critical'?' critical':sig.status==='warning'?' warning':sig.status==='active'?' active':'');
+    const bars=[1,2,3,4,5].map(n=>{
+      const on=n<=sig.strength;
+      const cls=on?(sig.status==='critical'?' cr':sig.status==='warning'?' wn':' on'):'';
+      return `<div class="s-bar${cls}" style="height:${n*4+4}px"></div>`;
+    }).join('');
+    card.innerHTML=`<div class="sig-id">${sig.id} · ${sig.type}</div>
+      <div class="sig-name">${sig.name}</div>
+      <div class="sig-bars">${bars}<span style="font-size:8px;color:var(--teal);margin-left:5px">${sig.freq} MHz</span></div>
+      <div class="sig-tags">${sig.encrypted?'<span class="s-tag enc">ENC</span>':''}${sig.priority?'<span class="s-tag pri">PRIO</span>':''}${sig.status==='critical'?'<span class="s-tag thr">THREAT</span>':''}</div>`;
+    grid.appendChild(card);
+  });
+}
+
+function switchView(v){
+  ['dial','addr','sig'].forEach(id=>{
+    document.getElementById('view-'+id).classList.toggle('active',id===v);
+    document.getElementById('nav-'+id).classList.toggle('active',id===v);
+  });
+}
+
+function startTicker(){
+  document.getElementById('ticker').textContent=[
+    'SGC DIALING COMPUTER ADDRESS BOOK v2.0','LOAD VARIABLES ENABLED · SYS DISPLAY 0',
+    'DISPLAYING SGC ADDRESS BOOK · STANDBY','SG-1 OFFWORLD · P4X-639 · NO CONTACT 48H',
+    'NAQUADAH REACTOR OUTPUT: NOMINAL · 98.2%','CURRENT OPERATOR: SERGEANT WALTER DAVIS',
+    'CARTOUCHE VERSION 3.0 · LAST UPDATED 10:02:04',
+  ].join('  ·  ');
+}
+</script>
+</body>
+</html>
